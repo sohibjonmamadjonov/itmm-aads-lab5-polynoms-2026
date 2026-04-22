@@ -12,6 +12,30 @@
 #include <algorithm>
 #include <regex>
 
+
+TPolynom operator*(double coeff, const TPolynom& polynom) {
+    return polynom * coeff;   
+}
+
+bool TPolynom::operator==(const TPolynom& polynom) const {
+    if (data.size() != polynom.data.size()) return false;
+
+    auto it1 = data.begin();
+    auto it2 = polynom.data.begin();
+
+    while (it1 != data.end()) {
+        if (it1->powers != it2->powers) return false;
+        if (std::abs(it1->coeff - it2->coeff) > 1e-9) return false;
+        ++it1; ++it2;
+    }
+    return true;
+}
+
+bool TPolynom::operator!=(const TPolynom& polynom) const {
+    return !(*this == polynom);
+}
+
+
 // Вспомогательные функции для работы со степенями
 namespace {
     /**
@@ -149,43 +173,8 @@ namespace {
 TPolynom::TPolynom() {
     // data инициализируется автоматически
 }
- // Проверка корректности
  
-bool TPolynom::IsCorrect() const {
-    for (const auto& term : data) {
-        int x_deg, y_deg, z_deg;
-        ExtractPowers(term.powers, x_deg, y_deg, z_deg);
-
-        // Проверка степеней (0-9 по условию лабораторной работы)
-        if (x_deg < 0 || x_deg > 9 ||
-            y_deg < 0 || y_deg > 9 ||
-            z_deg < 0 || z_deg > 9) {
-            return false;
-        }
-
-        // Проверка коэффициента (не бесконечность и не NaN)
-        if (std::isinf(term.coeff) || std::isnan(term.coeff)) {
-            return false;
-        }
-    }
-    return true;
-}
- // Установка полинома из строки
- void TPolynom::SetPolynom(const std::string& polynom) {
-    data.clear();
-
-    if (polynom.empty()) {
-        return;
-    }
-
-    // Удаляем все пробелы для упрощения разбора
-    std::string expr = polynom;
-    expr.erase(std::remove_if(expr.begin(), expr.end(), ::isspace), expr.end());
-
-    if (expr.empty()) {
-        return;
-    }
-
+void TPolynom::ParsePolynom(const std::string& expr) {
     size_t pos = 0;
     bool first_term = true;
 
@@ -212,14 +201,14 @@ bool TPolynom::IsCorrect() const {
             first_term = false;
         }
 
-        // Парсим коэффициент (может быть целым или дробным)
+        // Парсим коэффициент
         if (pos < expr.length() && (std::isdigit(expr[pos]) || expr[pos] == '.')) {
             double num;
             std::tie(num, pos) = ParseNumber(expr, pos);
             coeff *= num;
         }
 
-        // Парсим переменные и их степени
+        // Парсим переменные
         while (pos < expr.length() && IsVariable(expr[pos])) {
             char var = expr[pos];
             pos++;
@@ -234,7 +223,7 @@ bool TPolynom::IsCorrect() const {
             }
         }
 
-        // Добавляем моном, если коэффициент не нулевой
+        // Добавляем моном
         if (std::abs(coeff) > 1e-10) {
             TTerm term;
             term.coeff = coeff;
@@ -242,127 +231,135 @@ bool TPolynom::IsCorrect() const {
             data.push_back(term);
         }
     }
+}
 
-    // Приводим подобные и сортируем
+
+ 
+bool TPolynom::IsCorrect() const {
+    for (const auto& term : data) {
+        int x_deg, y_deg, z_deg;
+        ExtractPowers(term.powers, x_deg, y_deg, z_deg);
+
+        // Проверка степеней (0-9 по условию лабораторной работы)
+        if (x_deg < 0 || x_deg > 9 ||
+            y_deg < 0 || y_deg > 9 ||
+            z_deg < 0 || z_deg > 9) {
+            return false;
+        }
+
+        // Проверка коэффициента (не бесконечность и не NaN)
+        if (std::isinf(term.coeff) || std::isnan(term.coeff)) {
+            return false;
+        }
+    }
+    return true;
+}
+ // Установка полинома из строки
+void TPolynom::SetPolynom(const std::string& polynom) {
+    data.clear();
+
+    if (polynom.empty()) {
+        return;
+    }
+
+    std::string expr = polynom;
+    expr.erase(std::remove_if(expr.begin(), expr.end(), ::isspace), expr.end());
+
+    if (expr.empty()) {
+        return;
+    }
+
+    ParsePolynom(expr);
+
     SimplifyPolynom(data);
 }
-
  
 // Арифметические операции
- 
-TPolynom& TPolynom::operator+(const TPolynom& polynom) const {
-    TPolynom* result = new TPolynom();
+TPolynom TPolynom::operator+(const TPolynom& polynom) const {
+    TPolynom result;
+    result.data = data;
 
-    // Копируем первый полином
-    result->data = data;
-
-    // Добавляем второй полином
     for (const auto& term : polynom.data) {
-        result->data.push_back(term);
+        result.data.push_back(term);
     }
 
-    // Приводим подобные
-    SimplifyPolynom(result->data);
-
-    return *result;
+    SimplifyPolynom(result.data);
+    return result;
 }
 
- 
-TPolynom& TPolynom::operator-(const TPolynom& polynom) const {
-    TPolynom* result = new TPolynom();
+ TPolynom TPolynom::operator-(const TPolynom& polynom) const {
+     TPolynom result;
+     result.data = data;
 
-    // Копируем первый полином
-    result->data = data;
+     for (const auto& term : polynom.data) {
+         TTerm neg_term;
+         neg_term.coeff = -term.coeff;
+         neg_term.powers = term.powers;
+         result.data.push_back(neg_term);
+     }
 
-    // Добавляем второй полином с обратным знаком
-    for (const auto& term : polynom.data) {
-        TTerm neg_term;
-        neg_term.coeff = -term.coeff;
-        neg_term.powers = term.powers;
-        result->data.push_back(neg_term);
-    }
+     SimplifyPolynom(result.data);
+     return result;
+ }
 
-    // Приводим подобные
-    SimplifyPolynom(result->data);
+ TPolynom TPolynom::operator*(const TPolynom& polynom) const {
+     TPolynom result;
 
-    return *result;
-}
- 
-TPolynom& TPolynom::operator*(const TPolynom& polynom) const {
-    TPolynom* result = new TPolynom();
+     for (const auto& term1 : data) {
+         for (const auto& term2 : polynom.data) {
+             TTerm product;
+             product.coeff = term1.coeff * term2.coeff;
 
-    for (const auto& term1 : data) {
-        for (const auto& term2 : polynom.data) {
-            TTerm product;
+             int x1, y1, z1, x2, y2, z2;
+             ExtractPowers(term1.powers, x1, y1, z1);
+             ExtractPowers(term2.powers, x2, y2, z2);
 
-            // Умножение коэффициентов
-            product.coeff = term1.coeff * term2.coeff;
+             int new_x = x1 + x2;
+             int new_y = y1 + y2;
+             int new_z = z1 + z2;
 
-            // Сложение степеней
-            int x1, y1, z1, x2, y2, z2;
-            ExtractPowers(term1.powers, x1, y1, z1);
-            ExtractPowers(term2.powers, x2, y2, z2);
+             if (new_x <= 9 && new_y <= 9 && new_z <= 9) {
+                 product.powers = MakePowers(new_x, new_y, new_z);
+                 if (std::abs(product.coeff) > 1e-10) {
+                     result.data.push_back(product);
+                 }
+             }
+         }
+     }
 
-            int new_x = x1 + x2;
-            int new_y = y1 + y2;
-            int new_z = z1 + z2;
+     SimplifyPolynom(result.data);
+     return result;
+ }
 
-            // Проверка, что степени не превышают 9 (условие лабораторной)
-            if (new_x <= 9 && new_y <= 9 && new_z <= 9) {
-                product.powers = MakePowers(new_x, new_y, new_z);
+ TPolynom TPolynom::operator*(double coeff) const {
+     TPolynom result;
 
-                // Если коэффициент не нулевой, добавляем
-                if (std::abs(product.coeff) > 1e-10) {
-                    result->data.push_back(product);
-                }
-            }
-        }
-    }
+     if (std::abs(coeff) < 1e-10) {
+         return result;
+     }
 
-    // Приводим подобные
-    SimplifyPolynom(result->data);
+     for (const auto& term : data) {
+         TTerm new_term;
+         new_term.coeff = term.coeff * coeff;
+         new_term.powers = term.powers;
 
-    return *result;
-}
+         if (std::abs(new_term.coeff) > 1e-10) {
+             result.data.push_back(new_term);
+         }
+     }
 
- 
-TPolynom& TPolynom::operator*(double coeff) const {
-    TPolynom* result = new TPolynom();
-
-    if (std::abs(coeff) < 1e-10) {
-        return *result; // Возвращаем пустой полином (нуль)
-    }
-
-    for (const auto& term : data) {
-        TTerm new_term;
-        new_term.coeff = term.coeff * coeff;
-        new_term.powers = term.powers;
-
-        if (std::abs(new_term.coeff) > 1e-10) {
-            result->data.push_back(new_term);
-        }
-    }
-
-    // Приводим подобные (хотя после умножения на число подобные не появятся)
-    SimplifyPolynom(result->data);
-
-    return *result;
-}
- 
-void TPolynom::Add(const std::string& monom) const {
-    // Создаем временный полином из монома
+     SimplifyPolynom(result.data);
+     return result;
+ }
+void TPolynom::Add(const std::string& monom)   {
     TPolynom temp;
     temp.SetPolynom(monom);
 
-    // Добавляем все члены временного полинома к текущему
-    TPolynom* non_const_this = const_cast<TPolynom*>(this);
-
     for (const auto& term : temp.data) {
-        non_const_this->data.push_back(term);
+        data.push_back(term);
     }
 
-    // Приводим подобные
-    SimplifyPolynom(non_const_this->data);
+    SimplifyPolynom(data);
 }
 
  

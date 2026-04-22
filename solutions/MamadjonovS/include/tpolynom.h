@@ -20,26 +20,32 @@ class TPolynom {
 private:
 	std::list<TTerm> data;
 
+	void ParsePolynom(const std::string& expr);
+
 public:
 	TPolynom();
+
+	bool operator==(const TPolynom& other) const;
+	bool operator!=(const TPolynom& other) const;
 
 	bool IsCorrect() const; // возвращает коррекность полинома (false - если на вход подали некорректное выражение)
 
 	void SetPolynom(const std::string& polynom);
 
-	TPolynom& operator+(const TPolynom& polynom) const;
-	TPolynom& operator-(const TPolynom& polynom) const;
+	TPolynom operator+(const TPolynom& polynom) const;
+	TPolynom operator-(const TPolynom& polynom) const;
+	TPolynom operator*(const TPolynom& polynom) const;
+	TPolynom operator*(double coeff) const;
 
-	TPolynom& operator*(const TPolynom& polynom) const;
-	TPolynom& operator*(double coeff) const;
-
-	void Add(const std::string& monom) const; // Добавление монома
-	void Delete(size_t pos); // Удаление монома
+	void Add(const std::string& monom);  
+	void Delete(size_t pos);  
 
 	double Calculate(double x, double y, double z) const;
 
 	friend std::istream& operator>>(std::istream& istr, TPolynom& polynom);
 	friend std::ostream& operator<<(std::ostream& ostr, const TPolynom& polynom);
 };
+
+TPolynom operator*(double coeff, const TPolynom& polynom);
 
 #endif
